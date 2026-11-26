@@ -1,22 +1,25 @@
-// Entry for news-image-20261125: writes the 1024x1024 editorial broadsheet
-// for Wednesday 25 November 2026 to /output/entry.png deterministically.
+import { copyFileSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-
-const MAX_BYTES = 1_048_576;
-const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
+const rootDir = dirname(fileURLToPath(import.meta.url));
+const srcImage = join(rootDir, 'entry.png');
 const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
-const srcPath = new URL('./entry.png', import.meta.url);
-const imageBytes = readFileSync(srcPath);
+const destImage = join(outDir, 'entry.png');
 
-if (imageBytes.length === 0 || imageBytes.length > MAX_BYTES) {
-  throw new Error(`Invalid entry.png byte length: ${imageBytes.length}`);
+const header = readFileSync(srcImage);
+if (header.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') {
+  throw new Error('entry.png is not a valid PNG');
 }
-if (!imageBytes.subarray(0, 8).equals(PNG_MAGIC)) {
-  throw new Error('entry.png does not begin with a valid PNG header');
+if (header.byteLength > 1_048_576) {
+  throw new Error(`entry.png exceeds 1 MiB (${header.byteLength} bytes)`);
 }
 
 mkdirSync(outDir, { recursive: true });
-writeFileSync(join(outDir, 'entry.png'), imageBytes);
+copyFileSync(srcImage, destImage);
+
+const info = statSync(destImage);
+if (info.size !== header.byteLength) {
+  throw new Error('Copied entry.png size mismatch');
+}
+
